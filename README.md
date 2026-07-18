@@ -18,12 +18,14 @@ npm run build
 
 ## Data source
 
-The app attempts to open Dynamical's NOAA HRRR 48-hour virtual Icechunk source directly from the browser:
+Smokehrrr renders HRRR surface (8 m) smoke mass density (`MASSDEN`, band 76) in µg/m³ through TiTiler as a browser-native PNG overlay. The map can also switch to AQI estimate colors by mapping modeled near-surface smoke mass density to EPA PM2.5 AQI breakpoints; this is not official monitor-derived AQI.
 
-`https://dynamical.org/catalog/noaa-hrrr-forecast-48-hour-virtual/`
+`https://raster.eoapi.dev/external/bbox/...png?url=vrt://https://noaa-hrrr-bdp-pds.s3.amazonaws.com/...wrfsfcf00.grib2?bands=76`
 
-It uses the smoke variable from `test.ipynb`: `mass_density_8m`.
+The timeline includes the previous 24 zero-hour analyses from the latest available run window, plus forecast frames from the latest available HRRR run. Forecast frames use the same TiTiler path with `wrfsfcfXX.grib2` forecast hours. The UI can jump back to current conditions or animate either the recent analysis window or the forecast sequence.
 
-Current blocker: the source opens, but browser chunk reads fail because `zarrita` does not know the virtual chunk codec `gribberish`. See `dev-docs/direct-browser-blocker.md`.
+Set `VITE_TITILER_BASE_URL` to use a different TiTiler deployment.
 
-No backend or tile service is used in this MVP.
+Forecast frames are model guidance, not observed smoke.
+
+The first direct-browser Icechunk path is paused because HRRR virtual chunks use the `gribberish` codec, which `zarrita` cannot decode in the browser today. See `dev-docs/direct-browser-blocker.md`.

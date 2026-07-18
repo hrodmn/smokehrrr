@@ -50,6 +50,7 @@ Use these sibling projects for context when available:
 - Start static frontend-first unless data access proves otherwise.
 - Prove data access before polishing UI.
 - Reuse existing deck.gl-raster examples and patterns instead of inventing a new rendering stack.
+- Match the smoke colormap used in `noaa-hrrr-browser` for `MASSDEN` unless there is a deliberate user-facing reason to change it.
 - Keep the app smoke-specific. If a feature serves generic HRRR browsing more than smoke interpretation, defer it.
 - Add only the controls needed for the current milestone.
 - Document forecast uncertainty and data-source assumptions in user-facing copy when forecasts are introduced.
