@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildSmokeFrames } from "./time";
+import { buildSmokeFrames, formatUtcHour, formatViewerHour, formatViewerShortHour } from "./time";
 
 const latestRun = { date: "20260717", hour: 3, forecastHour: 0 };
+
+describe("formatViewerHour", () => {
+  it("can show a viewer-local time zone label", () => {
+    expect(formatViewerHour(new Date("2026-07-17T03:00:00Z"), { timeZone: "America/Denver" })).toContain("MDT");
+  });
+
+  it("formats compact timestamps for the timeline header", () => {
+    expect(formatViewerShortHour(new Date("2026-07-17T03:00:00Z"))).not.toContain("2026");
+  });
+});
 
 describe("buildSmokeFrames", () => {
   it("builds chronological analysis frames followed by forecasts", () => {
@@ -34,7 +44,7 @@ describe("buildSmokeFrames", () => {
   });
 
   it("sets forecast valid times from run time plus forecast hour", () => {
-    const frames = buildSmokeFrames({ latestRun, analysisLookbackHours: 1, forecastHorizonHours: 6 });
+    const frames = buildSmokeFrames({ latestRun, analysisLookbackHours: 1, forecastHorizonHours: 6, formatHour: formatUtcHour });
     const forecast = frames.at(-1);
 
     expect(forecast?.run).toEqual({ date: "20260717", hour: 3, forecastHour: 6 });
@@ -43,7 +53,7 @@ describe("buildSmokeFrames", () => {
   });
 
   it("labels analysis frames distinctly", () => {
-    const [frame] = buildSmokeFrames({ latestRun, analysisLookbackHours: 1, forecastHorizonHours: 0 });
+    const [frame] = buildSmokeFrames({ latestRun, analysisLookbackHours: 1, forecastHorizonHours: 0, formatHour: formatUtcHour });
 
     expect(frame?.label).toBe("Analysis · 2026-07-17 03Z");
   });

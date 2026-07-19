@@ -1,6 +1,6 @@
 import type { AppStatus } from "../app-state";
-import { HRRR_SOURCE_NAME } from "../hrrr/metadata";
-import { formatUtcHour, hrrrRunTime } from "../hrrr/time";
+import { SmokehrrrLogo } from "./SmokehrrrLogo";
+import { SourceLinks } from "./SourceLinks";
 
 export function statusText(status: AppStatus): string {
   if (status.state === "ready") {
@@ -9,28 +9,40 @@ export function statusText(status: AppStatus): string {
   return status.message;
 }
 
-export function StatusPanel({ status }: { status: AppStatus }) {
-  const frame = status.state === "ready" ? status.frame : null;
-
+export function StatusPanel({
+  status,
+  theme,
+  onInfoClick,
+  onThemeToggle,
+}: {
+  status: AppStatus;
+  theme: "dark" | "light";
+  onInfoClick: () => void;
+  onThemeToggle: () => void;
+}) {
   return (
     <section className="panel status-panel" aria-live="polite">
-      <p className="eyebrow">Smokehrrr</p>
-      <h1>HRRR smoke timeline</h1>
-      <dl>
-        <dt>Source</dt>
-        <dd>{HRRR_SOURCE_NAME}</dd>
-        <dt>Status</dt>
-        <dd className={status.state}>{statusText(status)}</dd>
-        {frame ? (
-          <>
-            <dt>Run</dt>
-            <dd>{formatUtcHour(hrrrRunTime(frame.run))}</dd>
-            <dt>Valid</dt>
-            <dd>{formatUtcHour(frame.validTime)}</dd>
-          </>
-        ) : null}
-      </dl>
-      {frame?.kind === "forecast" ? <p className="forecast-note">Forecast frames are model guidance, not observed smoke.</p> : null}
+      <div className="status-actions">
+        <button className="status-icon-button" type="button" aria-label="Show Smokehrrr information" onClick={onInfoClick}>
+          i
+        </button>
+        <button
+          className="status-icon-button theme-button"
+          type="button"
+          aria-label={theme === "dark" ? "Switch to light map" : "Switch to dark map"}
+          title={theme === "dark" ? "Switch to light map" : "Switch to dark map"}
+          onClick={onThemeToggle}
+        >
+          {theme === "dark" ? "☀" : "☾"}
+        </button>
+      </div>
+      <h1 className="logo-heading">
+        <SmokehrrrLogo />
+      </h1>
+      <SourceLinks />
+      {status.state === "ready" ? null : (
+        <p className={`status-message ${status.state}`}>{statusText(status)}</p>
+      )}
     </section>
   );
 }

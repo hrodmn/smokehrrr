@@ -1,15 +1,22 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layer, Map as MapLibreMap, Source } from "react-map-gl/maplibre";
+import { Map as MapLibreMap } from "react-map-gl/maplibre";
+import type { Layer } from "@deck.gl/core";
 import type { StyleSpecification } from "maplibre-gl";
 import { initialStatus, type AppStatus } from "./app-state";
 import { findLatestSmokeRun } from "./hrrr/availability";
-import { cacheSmokeFrame, preloadSmokeFrames, smokeFrameImageUrl, type SmokeFrameCache, type SmokeFrameLoadState } from "./hrrr/image-cache";
-import { HRRR_CONUS_IMAGE_COORDINATES, SMOKE_LAYER, SMOKE_RENDERINGS, TITILER_BASE_URL, type SmokeRenderingId } from "./hrrr/metadata";
+import { SMOKE_RENDERING, TITILER_BASE_URL } from "./hrrr/metadata";
 import { buildSmokeFrames, type SmokeFrame } from "./hrrr/time";
+import { createSmokeArrayLayer, fetchSmokeFrameArray, sampleSmokeFrameValue, type SmokeFrameArray } from "./hrrr/smoke-array-layer";
+import { DeckGlOverlay } from "./ui/DeckGlOverlay";
 import { Legend } from "./ui/Legend";
 import { StatusPanel } from "./ui/StatusPanel";
-import { frameIndexes, TimeControl, type PlaybackRange } from "./ui/TimeControl";
+import { frameIndexes, TimeControl, type PlaybackRange, type SmokeFrameLoadState } from "./ui/TimeControl";
+import { TimeSeriesPanel, type TimeSeriesPoint } from "./ui/TimeSeriesPanel";
+import { shouldShowWelcome, WelcomeDialog } from "./ui/WelcomeDialog";
+
+type SmokeFrameCache = Map<string, SmokeFrameLoadState>;
+type SmokeArrayCache = Map<string, SmokeFrameArray>;
 
 type Theme = "dark" | "light";
 
@@ -34,29 +41,69 @@ function mapStyle(theme: Theme): StyleSpecification {
         tileSize: 256,
         attribution: "© OpenStreetMap contributors © CARTO",
       },
+      labels: {
+        type: "raster",
+        tiles: [cartoTiles[theme].labels],
+        tileSize: 256,
+      },
     },
-    layers: [{ id: "base", type: "raster", source: "base" }],
+    layers: [
+      { id: "base", type: "raster", source: "base" },
+      { id: "carto-labels", type: "raster", source: "labels" },
+    ],
   };
-}
-
-function imageUrl(frame: SmokeFrame, rendering: SmokeRenderingId): string {
-  return smokeFrameImageUrl(TITILER_BASE_URL, frame, rendering);
 }
 
 export default function App() {
   const [status, setStatus] = useState<AppStatus>(initialStatus);
   const [frames, setFrames] = useState<SmokeFrame[]>([]);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
-  const [smokeUrl, setSmokeUrl] = useState<string | null>(null);
+  const [smokeArrays, setSmokeArrays] = useState<Record<string, SmokeFrameArray>>({});
   const [theme, setTheme] = useState<Theme>("dark");
-  const [rendering, setRendering] = useState<SmokeRenderingId>("density");
   const [playing, setPlaying] = useState<PlaybackRange | null>(null);
+  const [samplePoint, setSamplePoint] = useState<TimeSeriesPoint | null>(null);
+  const [welcomeOpen, setWelcomeOpen] = useState(shouldShowWelcome);
   const [frameLoadStates, setFrameLoadStates] = useState<Record<string, SmokeFrameLoadState>>({});
   const frameCache = useRef<SmokeFrameCache>(new Map());
+  const smokeArrayCache = useRef<SmokeArrayCache>(new Map());
+  const inflightArrayLoads = useRef<Map<string, Promise<SmokeFrameArray>>>(new Map());
   const setFrameLoadState = useCallback((frameId: string, state: SmokeFrameLoadState) => {
     frameCache.current.set(frameId, state);
     setFrameLoadStates(Object.fromEntries(frameCache.current));
   }, []);
+  const setSmokeArray = useCallback((frameId: string, array: SmokeFrameArray) => {
+    smokeArrayCache.current.set(frameId, array);
+    setSmokeArrays(Object.fromEntries(smokeArrayCache.current));
+  }, []);
+  const loadSmokeArray = useCallback(
+    (frame: SmokeFrame) => {
+      const cachedArray = smokeArrayCache.current.get(frame.id);
+      if (cachedArray) return Promise.resolve(cachedArray);
+      if (frameCache.current.get(frame.id) === "error") return Promise.reject(new Error(`${frame.label} is unavailable`));
+
+      const inflight = inflightArrayLoads.current.get(frame.id);
+      if (inflight) return inflight;
+
+      setFrameLoadState(frame.id, "loading");
+      const load = fetchSmokeFrameArray({ titilerBaseUrl: TITILER_BASE_URL, frame })
+        .then((array) => {
+          setSmokeArray(frame.id, array);
+          setFrameLoadState(frame.id, "loaded");
+          return array;
+        })
+        .catch((error: unknown) => {
+          setFrameLoadState(frame.id, "error");
+          throw error;
+        })
+        .finally(() => {
+          inflightArrayLoads.current.delete(frame.id);
+        });
+
+      inflightArrayLoads.current.set(frame.id, load);
+      return load;
+    },
+    [setFrameLoadState, setSmokeArray],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,55 +134,52 @@ export default function App() {
 
     const cached = frameCache.current.get(selectedFrame.id);
     if (cached === "loaded") {
-      setSmokeUrl(imageUrl(selectedFrame, rendering));
-      setStatus({ state: "ready", variable: SMOKE_RENDERINGS[rendering].label, frame: selectedFrame });
+      setStatus({ state: "ready", variable: SMOKE_RENDERING.label, frame: selectedFrame });
       return;
     }
     if (cached === "error") {
-      setStatus({ state: "error", message: `${selectedFrame.label} is unavailable. Showing the last available frame.` });
+      setStatus({ state: "error", message: `${selectedFrame.label} is unavailable.` });
       return;
     }
 
-    const controller = new AbortController();
-    setFrameLoadState(selectedFrame.id, "loading");
+    let active = true;
     setStatus({ state: "loading", message: `Loading ${selectedFrame.label}…` });
 
-    cacheSmokeFrame(TITILER_BASE_URL, selectedFrame, controller.signal)
-      .then((available) => {
-        setFrameLoadState(selectedFrame.id, available ? "loaded" : "error");
-        if (!available) {
-          setStatus({ state: "error", message: `${selectedFrame.label} is unavailable. Showing the last available frame.` });
-          return;
-        }
-        setSmokeUrl(imageUrl(selectedFrame, rendering));
-        setStatus({ state: "ready", variable: SMOKE_RENDERINGS[rendering].label, frame: selectedFrame });
+    loadSmokeArray(selectedFrame)
+      .then(() => {
+        if (active) setStatus({ state: "ready", variable: SMOKE_RENDERING.label, frame: selectedFrame });
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setFrameLoadState(selectedFrame.id, "error");
-        setStatus({ state: "error", message: error instanceof Error ? error.message : String(error) });
+        if (active) setStatus({ state: "error", message: error instanceof Error ? error.message : String(error) });
       });
 
-    return () => controller.abort();
-  }, [selectedFrame, rendering, setFrameLoadState]);
+    return () => {
+      active = false;
+    };
+  }, [loadSmokeArray, selectedFrame]);
 
   useEffect(() => {
     if (frames.length === 0) return;
-    const controller = new AbortController();
-    void preloadSmokeFrames({
-      titilerBaseUrl: TITILER_BASE_URL,
-      frames,
-      currentIndex: selectedFrameIndex,
-      cache: frameCache.current,
-      signal: controller.signal,
-      onFrameState: setFrameLoadState,
-    });
-    return () => controller.abort();
-  }, [frames, selectedFrameIndex, setFrameLoadState]);
+    let cancelled = false;
+    const eagerFrames = selectedFrame ? [selectedFrame, ...frames.filter((frame) => frame.id !== selectedFrame.id)] : frames;
+
+    void (async () => {
+      const workers = Array.from({ length: 2 }, async (_, workerIndex) => {
+        for (let index = workerIndex; index < eagerFrames.length && !cancelled; index += 2) {
+          await loadSmokeArray(eagerFrames[index]).catch(() => undefined);
+        }
+      });
+      await Promise.all(workers);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [frames, loadSmokeArray, selectedFrame]);
 
   useEffect(() => {
     if (!playing) return;
-    const indexes = frameIndexes(frames, playing);
+    const indexes = frameIndexes(frames, playing, frameLoadStates);
     if (indexes.length === 0) {
       setPlaying(null);
       return;
@@ -145,55 +189,63 @@ export default function App() {
       setSelectedFrameIndex((current) => indexes[(indexes.indexOf(current) + 1) % indexes.length] ?? indexes[0]);
     }, 900);
     return () => window.clearInterval(timer);
-  }, [frames, playing]);
+  }, [frameLoadStates, frames, playing]);
 
-  const imageCoordinates = useMemo(
-    () => HRRR_CONUS_IMAGE_COORDINATES.map((point) => [...point]) as [[number, number], [number, number], [number, number], [number, number]],
-    [],
-  );
   const currentMapStyle = useMemo(() => mapStyle(theme), [theme]);
+  const smokeLayers = useMemo<Layer[]>(() => {
+    if (!selectedFrame || frameCache.current.get(selectedFrame.id) !== "loaded") return [];
+    const array = smokeArrayCache.current.get(selectedFrame.id);
+    return array ? [createSmokeArrayLayer({ frame: selectedFrame, array })] : [];
+  }, [frameLoadStates, selectedFrame, smokeArrays]);
+  const sampleLocation = useCallback(
+    (longitude: number, latitude: number) => {
+      const array = selectedFrame ? smokeArrayCache.current.get(selectedFrame.id) : null;
+      if (!array || sampleSmokeFrameValue(array, longitude, latitude) === null) return;
+      setSamplePoint({ longitude, latitude });
+    },
+    [selectedFrame],
+  );
 
   return (
     <main className={`app-shell ${theme}`}>
-      <MapLibreMap initialViewState={{ longitude: -98.5, latitude: 39.8, zoom: 3.4 }} mapStyle={currentMapStyle}>
-        {smokeUrl ? (
-          <Source key={smokeUrl} id="hrrr-smoke" type="image" url={smokeUrl} coordinates={imageCoordinates}>
-            <Layer id="hrrr-smoke" type="raster" paint={{ "raster-opacity": SMOKE_LAYER.opacity }} />
-          </Source>
-        ) : null}
-        <Source key={theme} id={`carto-labels-${theme}`} type="raster" tiles={[cartoTiles[theme].labels]} tileSize={256}>
-          <Layer id="carto-labels" type="raster" />
-        </Source>
+      <MapLibreMap
+        initialViewState={{ longitude: -98.5, latitude: 39.8, zoom: 3.4 }}
+        mapStyle={currentMapStyle}
+        onClick={(event: { lngLat: { lng: number; lat: number } }) => sampleLocation(event.lngLat.lng, event.lngLat.lat)}
+        onContextMenu={(event: { preventDefault: () => void; lngLat: { lng: number; lat: number } }) => {
+          event.preventDefault();
+          sampleLocation(event.lngLat.lng, event.lngLat.lat);
+        }}
+      >
+        <DeckGlOverlay layers={smokeLayers} />
       </MapLibreMap>
-      <div className="panel map-toggles" aria-label="Map display controls">
-        <button type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          {theme === "dark" ? "Light map" : "Dark map"}
-        </button>
-        <button type="button" className={rendering === "density" ? "active" : ""} onClick={() => setRendering("density")} aria-pressed={rendering === "density"}>
-          Density
-        </button>
-        <button type="button" className={rendering === "aqi" ? "active" : ""} onClick={() => setRendering("aqi")} aria-pressed={rendering === "aqi"}>
-          AQI
-        </button>
-      </div>
-      <StatusPanel status={status} />
-      <TimeControl
-        frames={frames}
-        selectedIndex={selectedFrameIndex}
-        playing={playing}
-        frameLoadStates={frameLoadStates}
-        onSelectedIndexChange={(index) => {
-          setPlaying(null);
-          setSelectedFrameIndex(index);
-        }}
-        onPlay={(range) => {
-          const [first] = frameIndexes(frames, range);
-          if (first !== undefined) setSelectedFrameIndex(first);
-          setPlaying(range);
-        }}
-        onStop={() => setPlaying(null)}
+      <StatusPanel
+        status={status}
+        theme={theme}
+        onInfoClick={() => setWelcomeOpen(true)}
+        onThemeToggle={() => setTheme(theme === "dark" ? "light" : "dark")}
       />
-      <Legend rendering={rendering} />
+      <WelcomeDialog open={welcomeOpen} onClose={() => setWelcomeOpen(false)} />
+      {samplePoint ? <TimeSeriesPanel frames={frames} arrays={smokeArrays} point={samplePoint} onClose={() => setSamplePoint(null)} /> : null}
+      <div className="bottom-stack">
+        <TimeControl
+          frames={frames}
+          selectedIndex={selectedFrameIndex}
+          playing={playing}
+          frameLoadStates={frameLoadStates}
+          onSelectedIndexChange={(index) => {
+            setPlaying(null);
+            setSelectedFrameIndex(index);
+          }}
+          onPlay={(range) => {
+            const [first] = frameIndexes(frames, range, frameLoadStates);
+            if (first !== undefined) setSelectedFrameIndex(first);
+            setPlaying(range);
+          }}
+          onStop={() => setPlaying(null)}
+        />
+        <Legend />
+      </div>
     </main>
   );
 }

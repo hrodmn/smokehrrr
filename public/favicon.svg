@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Smokehrrr">
+  <defs>
+    <linearGradient id="fill" x1="8" y1="56" x2="56" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7a2419"/>
+      <stop offset="0.45" stop-color="#de6f2f"/>
+      <stop offset="0.75" stop-color="#f2d56b"/>
+      <stop offset="1" stop-color="#d5f1ff"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="0" y1="64" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2a1210"/>
+      <stop offset="0.55" stop-color="#ff8f45"/>
+      <stop offset="1" stop-color="#fff4a6"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#111820"/>
+  <g transform="translate(1 0) skewX(-10 32 32)">
+    <text x="11" y="50" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="48" font-weight="900" fill="none" stroke="rgba(0,0,0,.7)" stroke-width="12" stroke-linejoin="round">S</text>
+    <text x="9" y="47" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="48" font-weight="900" fill="url(#fill)" stroke="url(#stroke)" stroke-width="7" stroke-linejoin="round" paint-order="stroke fill">S</text>
+    <text x="9" y="47" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="48" font-weight="900" fill="none" stroke="#111820" stroke-width="2.4" stroke-linejoin="round">S</text>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialStatus, type AppStatus } from "./app-state";
 import { statusText } from "./ui/StatusPanel";
+import { nearestFrameIndex } from "./ui/TimeControl";
 
 const frame = {
   id: "20260717T03Z-f000",
@@ -25,5 +26,12 @@ describe("app state", () => {
     expect(statusText({ state: "ready", variable: "Surface (8 m) smoke mass density (µg/m³)", frame })).toBe(
       "Surface (8 m) smoke mass density (µg/m³) · Analysis · 2026-07-17 03Z",
     );
+  });
+
+  it("snaps smooth slider values to valid frame indexes", () => {
+    expect(nearestFrameIndex(3.49, 10)).toBe(3);
+    expect(nearestFrameIndex(3.5, 10)).toBe(4);
+    expect(nearestFrameIndex(-1, 10)).toBe(0);
+    expect(nearestFrameIndex(12, 10)).toBe(10);
   });
 });

@@ -18,6 +18,7 @@ export type BuildSmokeFramesOptions = {
   latestRun: HrrrRun;
   analysisLookbackHours?: number;
   forecastHorizonHours?: number;
+  formatHour?: (date: Date) => string;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -38,6 +39,26 @@ export function formatUtcHour(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}Z`;
 }
 
+export function formatViewerHour(date: Date, options: Intl.DateTimeFormatOptions = {}): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    timeZoneName: "short",
+    ...options,
+  }).format(date);
+}
+
+export function formatViewerShortHour(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    timeZoneName: "short",
+  }).format(date);
+}
+
 function frameId(run: HrrrRun): string {
   return `${run.date}T${String(run.hour).padStart(2, "0")}Z-f${String(run.forecastHour).padStart(3, "0")}`;
 }
@@ -46,6 +67,7 @@ export function buildSmokeFrames({
   latestRun,
   analysisLookbackHours = ANALYSIS_LOOKBACK_HOURS,
   forecastHorizonHours = FORECAST_HORIZON_HOURS,
+  formatHour = formatViewerHour,
 }: BuildSmokeFramesOptions): SmokeFrame[] {
   const latestRunTime = hrrrRunTime(latestRun);
   const frames: SmokeFrame[] = [];
@@ -59,7 +81,7 @@ export function buildSmokeFrames({
       run,
       forecastHour: 0,
       validTime: time,
-      label: `Analysis · ${formatUtcHour(time)}`,
+      label: `Analysis · ${formatHour(time)}`,
     });
   }
 
@@ -72,7 +94,7 @@ export function buildSmokeFrames({
       run,
       forecastHour,
       validTime,
-      label: `Forecast +${forecastHour}h · valid ${formatUtcHour(validTime)}`,
+      label: `Forecast +${forecastHour}h · valid ${formatHour(validTime)}`,
     });
   }
 

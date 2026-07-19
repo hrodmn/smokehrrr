@@ -44,10 +44,14 @@ describe("time control helpers", () => {
     expect(frameIndexes([analysisFrame, forecastFrame], "forecast")).toEqual([1]);
   });
 
+  it("skips failed frames in animation ranges", () => {
+    expect(frameIndexes([analysisFrame, forecastFrame], "forecast", { [forecastFrame.id]: "error" })).toEqual([]);
+  });
+
   it("marks the start, current conditions, and end of the timeline", () => {
     expect(timelineMarks([analysisFrame, forecastFrame])).toEqual([
-      { index: 0, label: "2026-07-17 03Z" },
-      { index: 1, label: "Forecast +6h 2026-07-17 09Z" },
+      { index: 0, label: "Now" },
+      { index: 1, label: "+6h" },
     ]);
   });
 
