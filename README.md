@@ -16,6 +16,12 @@ npm test
 npm run build
 ```
 
+## Releases and deployment
+
+Release PRs are managed by release-please. When a release is created from `main`, GitHub Actions builds the app with `BASE_PATH=/smokehrrr/` and deploys `dist/` to GitHub Pages.
+
+Set GitHub Pages to use **GitHub Actions** as the source before publishing the first release.
+
 ## Data source
 
 Smokehrrr renders [NOAA HRRR](https://rapidrefresh.noaa.gov/hrrr/) surface (8 m) smoke mass density (`MASSDEN`, band 76) from the [NOAA HRRR public data archive](https://registry.opendata.aws/noaa-hrrr-pds/) as TiTiler `.npy` WebMercator tiles, scaled server-side to µg/m³ and colored in the browser with deck.gl-raster.
