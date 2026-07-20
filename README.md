@@ -18,9 +18,15 @@ npm run build
 
 ## Releases and deployment
 
-Release PRs are managed by release-please. When a release is created from `main`, GitHub Actions builds the app with `BASE_PATH=/smokehrrr/` and deploys `dist/` to GitHub Pages.
+Release PRs are managed by release-please. Published releases trigger a separate GitHub Pages deployment from the release tag, building the app with `BASE_PATH=/smokehrrr/` and deploying `dist/`.
 
-Set GitHub Pages to use **GitHub Actions** as the source before publishing the first release.
+Required repository setup:
+
+- Set GitHub Pages to use **GitHub Actions** as the source.
+- Add a `RELEASE_PLEASE_TOKEN` repository secret with permission to write contents and pull requests. This must be a token, not `GITHUB_TOKEN`, so the published release can trigger the Pages workflow.
+- In the `github-pages` environment, allow deployments from release tags, for example `v*`.
+
+The Pages workflow also has a manual `workflow_dispatch` trigger for retrying a deployment without publishing another release. Manual runs deploy the latest release by default, or a specific tag if provided.
 
 ## Data source
 
