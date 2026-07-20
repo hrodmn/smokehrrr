@@ -1,6 +1,7 @@
 const links = [
   ["NOAA HRRR", "https://rapidrefresh.noaa.gov/hrrr/"],
   ["Source data", "https://registry.opendata.aws/noaa-hrrr-pds/"],
+  ["GitHub", "https://github.com/hrodmn/smokehrrr"],
 ] as const;
 
 export function SourceLinks() {
