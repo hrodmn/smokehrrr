@@ -52,6 +52,19 @@ export function nearestFrameIndex(value: number, max: number): number {
   return Math.min(Math.max(Math.round(value), 0), max);
 }
 
+export function nearestLoadedFrameIndex(value: number, frames: SmokeFrame[], frameLoadStates: Record<string, SmokeFrameLoadState>): number {
+  const index = nearestFrameIndex(value, Math.max(frames.length - 1, 0));
+  if (frameLoadStates[frames[index]?.id] === "loaded") return index;
+
+  for (let distance = 1; distance < frames.length; distance += 1) {
+    const before = index - distance;
+    const after = index + distance;
+    if (frameLoadStates[frames[before]?.id] === "loaded") return before;
+    if (frameLoadStates[frames[after]?.id] === "loaded") return after;
+  }
+  return index;
+}
+
 export function TimeControl({
   frames,
   selectedIndex,
@@ -74,7 +87,7 @@ export function TimeControl({
   const scrubbing = useRef(false);
   const commitFrame = useRef<number | null>(null);
   const range = timeControlRange(frames);
-  const displayIndex = nearestFrameIndex(sliderValue, range.max);
+  const displayIndex = nearestLoadedFrameIndex(sliderValue, frames, frameLoadStates);
   const frame = frames[displayIndex];
   const latestAnalysisIndex = latestAnalysisFrameIndex(frames);
   const marks = timelineMarks(frames);
@@ -92,7 +105,7 @@ export function TimeControl({
 
   const scrubTo = (value: number) => {
     setSliderValue(value);
-    const index = nearestFrameIndex(value, range.max);
+    const index = nearestLoadedFrameIndex(value, frames, frameLoadStates);
     if (index === selectedIndex) return;
     if (commitFrame.current !== null) window.cancelAnimationFrame(commitFrame.current);
     commitFrame.current = window.requestAnimationFrame(() => {
@@ -154,12 +167,12 @@ export function TimeControl({
         }}
         onPointerUp={(event) => {
           scrubbing.current = false;
-          scrubTo(nearestFrameIndex(event.currentTarget.valueAsNumber, range.max));
+          scrubTo(nearestLoadedFrameIndex(event.currentTarget.valueAsNumber, frames, frameLoadStates));
         }}
         onChange={(event) => scrubTo(event.currentTarget.valueAsNumber)}
         onBlur={(event) => {
           scrubbing.current = false;
-          scrubTo(nearestFrameIndex(event.currentTarget.valueAsNumber, range.max));
+          scrubTo(nearestLoadedFrameIndex(event.currentTarget.valueAsNumber, frames, frameLoadStates));
         }}
       />
       {minimized ? null : (

@@ -11,12 +11,14 @@ import { createSmokeArrayLayer, fetchSmokeFrameArray, sampleSmokeFrameValue, typ
 import { DeckGlOverlay } from "./ui/DeckGlOverlay";
 import { Legend } from "./ui/Legend";
 import { StatusPanel } from "./ui/StatusPanel";
-import { frameIndexes, TimeControl, type PlaybackRange, type SmokeFrameLoadState } from "./ui/TimeControl";
+import { frameIndexes, nearestLoadedFrameIndex, TimeControl, type PlaybackRange, type SmokeFrameLoadState } from "./ui/TimeControl";
 import { TimeSeriesPanel, type TimeSeriesPoint } from "./ui/TimeSeriesPanel";
 import { shouldShowWelcome, WelcomeDialog } from "./ui/WelcomeDialog";
 
 type SmokeFrameCache = Map<string, SmokeFrameLoadState>;
 type SmokeArrayCache = Map<string, SmokeFrameArray>;
+type SmokeImageCache = Map<string, ImageData>;
+type RenderResponse = { id: number; pixels: ArrayBuffer };
 
 type Theme = "dark" | "light";
 
@@ -59,6 +61,7 @@ export default function App() {
   const [frames, setFrames] = useState<SmokeFrame[]>([]);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
   const [smokeArrays, setSmokeArrays] = useState<Record<string, SmokeFrameArray>>({});
+  const [smokeImages, setSmokeImages] = useState<Record<string, ImageData>>({});
   const [theme, setTheme] = useState<Theme>("dark");
   const [playing, setPlaying] = useState<PlaybackRange | null>(null);
   const [samplePoint, setSamplePoint] = useState<TimeSeriesPoint | null>(null);
@@ -66,6 +69,9 @@ export default function App() {
   const [frameLoadStates, setFrameLoadStates] = useState<Record<string, SmokeFrameLoadState>>({});
   const frameCache = useRef<SmokeFrameCache>(new Map());
   const smokeArrayCache = useRef<SmokeArrayCache>(new Map());
+  const smokeImageCache = useRef<SmokeImageCache>(new Map());
+  const smokeRenderWorker = useRef<Worker | null>(null);
+  const nextRenderId = useRef(0);
   const inflightArrayLoads = useRef<Map<string, Promise<SmokeFrameArray>>>(new Map());
   const setFrameLoadState = useCallback((frameId: string, state: SmokeFrameLoadState) => {
     frameCache.current.set(frameId, state);
@@ -75,19 +81,53 @@ export default function App() {
     smokeArrayCache.current.set(frameId, array);
     setSmokeArrays(Object.fromEntries(smokeArrayCache.current));
   }, []);
+  const setSmokeImage = useCallback((frameId: string, imageData: ImageData) => {
+    smokeImageCache.current.set(frameId, imageData);
+    setSmokeImages(Object.fromEntries(smokeImageCache.current));
+  }, []);
+  const renderSmokeImage = useCallback(
+    (frameId: string, array: SmokeFrameArray) =>
+      new Promise<ImageData>((resolve, reject) => {
+        const worker = smokeRenderWorker.current ?? new Worker(new URL("./hrrr/smoke-render-worker.ts", import.meta.url), { type: "module" });
+        smokeRenderWorker.current = worker;
+        const id = nextRenderId.current++;
+        const cleanup = () => {
+          worker.removeEventListener("message", onMessage);
+          worker.removeEventListener("error", onError);
+        };
+        const onMessage = (event: MessageEvent<RenderResponse>) => {
+          if (event.data.id !== id) return;
+          cleanup();
+          const imageData = new ImageData(new Uint8ClampedArray(event.data.pixels), array.ndarray.width, array.ndarray.height);
+          setSmokeImage(frameId, imageData);
+          resolve(imageData);
+        };
+        const onError = (event: ErrorEvent) => {
+          cleanup();
+          reject(event.error instanceof Error ? event.error : new Error(event.message));
+        };
+        worker.addEventListener("message", onMessage);
+        worker.addEventListener("error", onError);
+        worker.postMessage({ id, data: array.ndarray.data, width: array.ndarray.width, height: array.ndarray.height });
+      }),
+    [setSmokeImage],
+  );
   const loadSmokeArray = useCallback(
     (frame: SmokeFrame) => {
       const cachedArray = smokeArrayCache.current.get(frame.id);
-      if (cachedArray) return Promise.resolve(cachedArray);
+      if (cachedArray && smokeImageCache.current.has(frame.id)) return Promise.resolve(cachedArray);
       if (frameCache.current.get(frame.id) === "error") return Promise.reject(new Error(`${frame.label} is unavailable`));
 
       const inflight = inflightArrayLoads.current.get(frame.id);
       if (inflight) return inflight;
 
       setFrameLoadState(frame.id, "loading");
-      const load = fetchSmokeFrameArray({ titilerBaseUrl: TITILER_BASE_URL, frame })
+      const load = (cachedArray ? Promise.resolve(cachedArray) : fetchSmokeFrameArray({ titilerBaseUrl: TITILER_BASE_URL, frame }).then((array) => {
+        setSmokeArray(frame.id, array);
+        return array;
+      }))
+        .then((array) => renderSmokeImage(frame.id, array).then(() => array))
         .then((array) => {
-          setSmokeArray(frame.id, array);
           setFrameLoadState(frame.id, "loaded");
           return array;
         })
@@ -102,7 +142,7 @@ export default function App() {
       inflightArrayLoads.current.set(frame.id, load);
       return load;
     },
-    [setFrameLoadState, setSmokeArray],
+    [renderSmokeImage, setFrameLoadState, setSmokeArray],
   );
 
   useEffect(() => {
@@ -125,6 +165,10 @@ export default function App() {
       });
 
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    return () => smokeRenderWorker.current?.terminate();
   }, []);
 
   const selectedFrame = frames[selectedFrameIndex];
@@ -178,6 +222,12 @@ export default function App() {
   }, [frames, loadSmokeArray, selectedFrame]);
 
   useEffect(() => {
+    if (!selectedFrame || frameLoadStates[selectedFrame.id] !== "error") return;
+    const index = nearestLoadedFrameIndex(selectedFrameIndex, frames, frameLoadStates);
+    if (index !== selectedFrameIndex && frameLoadStates[frames[index]?.id] === "loaded") setSelectedFrameIndex(index);
+  }, [frameLoadStates, frames, selectedFrame, selectedFrameIndex]);
+
+  useEffect(() => {
     if (!playing) return;
     const indexes = frameIndexes(frames, playing, frameLoadStates);
     if (indexes.length === 0) {
@@ -194,9 +244,9 @@ export default function App() {
   const currentMapStyle = useMemo(() => mapStyle(theme), [theme]);
   const smokeLayers = useMemo<Layer[]>(() => {
     if (!selectedFrame || frameCache.current.get(selectedFrame.id) !== "loaded") return [];
-    const array = smokeArrayCache.current.get(selectedFrame.id);
-    return array ? [createSmokeArrayLayer({ frame: selectedFrame, array })] : [];
-  }, [frameLoadStates, selectedFrame, smokeArrays]);
+    const imageData = smokeImageCache.current.get(selectedFrame.id);
+    return imageData ? [createSmokeArrayLayer({ frame: selectedFrame, imageData })] : [];
+  }, [frameLoadStates, selectedFrame, smokeImages]);
   const sampleLocation = useCallback(
     (longitude: number, latitude: number) => {
       const array = selectedFrame ? smokeArrayCache.current.get(selectedFrame.id) : null;
@@ -235,7 +285,8 @@ export default function App() {
           frameLoadStates={frameLoadStates}
           onSelectedIndexChange={(index) => {
             setPlaying(null);
-            setSelectedFrameIndex(index);
+            const nearestLoaded = nearestLoadedFrameIndex(index, frames, frameLoadStates);
+            setSelectedFrameIndex(frameLoadStates[frames[nearestLoaded]?.id] === "loaded" ? nearestLoaded : index);
           }}
           onPlay={(range) => {
             const [first] = frameIndexes(frames, range, frameLoadStates);

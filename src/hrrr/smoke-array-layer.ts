@@ -56,10 +56,10 @@ export function renderSmokeArrayImageData(array: SmokeFrameArray): ImageData {
   return new ImageData(pixels, ndarray.width, ndarray.height);
 }
 
-export function createSmokeArrayLayer(options: { frame: SmokeFrame; array: SmokeFrameArray }): Layer {
+export function createSmokeArrayLayer(options: { frame: SmokeFrame; imageData: ImageData }): Layer {
   return new BitmapLayer({
     id: `hrrr-smoke-${options.frame.id}`,
-    image: renderSmokeArrayImageData(options.array),
+    image: options.imageData,
     bounds: [...HRRR_CONUS_BBOX],
     opacity: SMOKE_LAYER.opacity,
     beforeId: "carto-labels",

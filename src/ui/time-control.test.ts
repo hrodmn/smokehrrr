@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SmokeFrame } from "../hrrr/time";
-import { frameBadge, frameIndexes, frameLoadSummary, latestAnalysisFrameIndex, timeControlRange, timelineMarks } from "./TimeControl";
+import { frameBadge, frameIndexes, frameLoadSummary, latestAnalysisFrameIndex, nearestLoadedFrameIndex, timeControlRange, timelineMarks } from "./TimeControl";
 
 const analysisFrame: SmokeFrame = {
   id: "20260717T03Z-f000",
@@ -46,6 +46,11 @@ describe("time control helpers", () => {
 
   it("skips failed frames in animation ranges", () => {
     expect(frameIndexes([analysisFrame, forecastFrame], "forecast", { [forecastFrame.id]: "error" })).toEqual([]);
+  });
+
+  it("snaps slider choices to loaded frames", () => {
+    expect(nearestLoadedFrameIndex(1, [analysisFrame, forecastFrame], { [analysisFrame.id]: "loaded", [forecastFrame.id]: "error" })).toBe(0);
+    expect(nearestLoadedFrameIndex(1, [analysisFrame, forecastFrame], { [forecastFrame.id]: "loaded" })).toBe(1);
   });
 
   it("marks the start, current conditions, and end of the timeline", () => {
