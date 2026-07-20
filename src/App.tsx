@@ -6,7 +6,7 @@ import type { StyleSpecification } from "maplibre-gl";
 import { initialStatus, type AppStatus } from "./app-state";
 import { findLatestSmokeRun } from "./hrrr/availability";
 import { SMOKE_RENDERING, TITILER_BASE_URL } from "./hrrr/metadata";
-import { buildSmokeFrames, type SmokeFrame } from "./hrrr/time";
+import { buildSmokeFrames, eagerSmokeFrameOrder, type SmokeFrame } from "./hrrr/time";
 import { createSmokeArrayLayer, fetchSmokeFrameArray, sampleSmokeFrameValue, type SmokeFrameArray } from "./hrrr/smoke-array-layer";
 import { DeckGlOverlay } from "./ui/DeckGlOverlay";
 import { Legend } from "./ui/Legend";
@@ -21,6 +21,8 @@ type SmokeImageCache = Map<string, ImageData>;
 type RenderResponse = { id: number; pixels: ArrayBuffer };
 
 type Theme = "dark" | "light";
+
+const EAGER_FRAME_CONCURRENCY = 6;
 
 const cartoTiles = {
   dark: {
@@ -205,11 +207,11 @@ export default function App() {
   useEffect(() => {
     if (frames.length === 0) return;
     let cancelled = false;
-    const eagerFrames = selectedFrame ? [selectedFrame, ...frames.filter((frame) => frame.id !== selectedFrame.id)] : frames;
+    const eagerFrames = eagerSmokeFrameOrder(frames);
 
     void (async () => {
-      const workers = Array.from({ length: 2 }, async (_, workerIndex) => {
-        for (let index = workerIndex; index < eagerFrames.length && !cancelled; index += 2) {
+      const workers = Array.from({ length: EAGER_FRAME_CONCURRENCY }, async (_, workerIndex) => {
+        for (let index = workerIndex; index < eagerFrames.length && !cancelled; index += EAGER_FRAME_CONCURRENCY) {
           await loadSmokeArray(eagerFrames[index]).catch(() => undefined);
         }
       });
@@ -219,7 +221,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [frames, loadSmokeArray, selectedFrame]);
+  }, [frames, loadSmokeArray]);
 
   useEffect(() => {
     if (!selectedFrame || frameLoadStates[selectedFrame.id] !== "error") return;

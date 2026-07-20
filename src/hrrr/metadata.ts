@@ -1,9 +1,13 @@
 export const HRRR_SOURCE_NAME = "NOAA HRRR via TiTiler";
-export const TITILER_BASE_URL = import.meta.env.VITE_TITILER_BASE_URL || "https://raster.eoapi.dev";
+export const TITILER_BASE_URL =
+  import.meta.env.VITE_TITILER_BASE_URL || "https://raster.eoapi.dev";
 
 export const HRRR_CONUS_BBOX = [-134.12, 21.12, -60.9, 52.62] as const;
 
-export type SmokeColorStep = readonly [readonly [number, number], readonly [number, number, number, number]];
+export type SmokeColorStep = readonly [
+  readonly [number, number],
+  readonly [number, number, number, number],
+];
 export type SmokeColorStop = {
   min: number;
   max: number;
@@ -27,8 +31,14 @@ const DENSITY_STOPS = [
   { min: 200, max: Number.MAX_VALUE, color: [127, 31, 172, 255] },
 ] as const satisfies readonly SmokeColorStop[];
 
-function stopsToColormap(stops: readonly SmokeColorStop[], scale = 1): SmokeColorStep[] {
-  return stops.map((stop) => [[stop.min * scale, stop.max * scale], stop.color]);
+function stopsToColormap(
+  stops: readonly SmokeColorStop[],
+  scale = 1,
+): SmokeColorStep[] {
+  return stops.map((stop) => [
+    [stop.min * scale, stop.max * scale],
+    stop.color,
+  ]);
 }
 
 export const SMOKE_LAYER = {
@@ -46,7 +56,6 @@ export const SMOKE_RENDERING = {
   shortLabel: "Smoke density",
   units: "µg/m³",
   legendRange: [0, 200] as const,
-  legendNote: "Color range is fixed; values above 200 µg/m³ use the top color.",
   colorStops: DENSITY_STOPS,
   colormap: stopsToColormap(DENSITY_STOPS, 1e-9),
 } as const;

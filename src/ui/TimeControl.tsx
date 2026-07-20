@@ -9,8 +9,16 @@ export function frameBadge(frame: SmokeFrame): string {
   return frame.kind === "forecast" ? "Forecast" : "Analysis";
 }
 
-export function timeControlRange(frames: SmokeFrame[]): { min: number; max: number; disabled: boolean } {
-  return { min: 0, max: Math.max(frames.length - 1, 0), disabled: frames.length === 0 };
+export function timeControlRange(frames: SmokeFrame[]): {
+  min: number;
+  max: number;
+  disabled: boolean;
+} {
+  return {
+    min: 0,
+    max: Math.max(frames.length - 1, 0),
+    disabled: frames.length === 0,
+  };
 }
 
 export function latestAnalysisFrameIndex(frames: SmokeFrame[]): number {
@@ -20,24 +28,44 @@ export function latestAnalysisFrameIndex(frames: SmokeFrame[]): number {
   return -1;
 }
 
-export function frameIndexes(frames: SmokeFrame[], kind: PlaybackRange, frameLoadStates: Record<string, SmokeFrameLoadState> = {}): number[] {
-  return frames.flatMap((frame, index) => (frame.kind === kind && frameLoadStates[frame.id] !== "error" ? [index] : []));
+export function frameIndexes(
+  frames: SmokeFrame[],
+  kind: PlaybackRange,
+  frameLoadStates: Record<string, SmokeFrameLoadState> = {},
+): number[] {
+  return frames.flatMap((frame, index) =>
+    frame.kind === kind && frameLoadStates[frame.id] !== "error" ? [index] : [],
+  );
 }
 
-export function timelineMarks(frames: SmokeFrame[]): { index: number; label: string }[] {
+export function timelineMarks(
+  frames: SmokeFrame[],
+): { index: number; label: string }[] {
   if (frames.length === 0) return [];
   const latestAnalysis = latestAnalysisFrameIndex(frames);
   return [0, latestAnalysis, frames.length - 1]
-    .filter((index, position, indexes) => index >= 0 && indexes.indexOf(index) === position)
+    .filter(
+      (index, position, indexes) =>
+        index >= 0 && indexes.indexOf(index) === position,
+    )
     .map((index) => {
       if (index === latestAnalysis) return { index, label: "Now" };
       const frame = frames[index];
       if (!frame) return { index, label: "" };
-      return { index, label: frame.kind === "forecast" ? `+${frame.forecastHour}h` : formatViewerShortHour(frame.validTime) };
+      return {
+        index,
+        label:
+          frame.kind === "forecast"
+            ? `+${frame.forecastHour}h`
+            : formatViewerShortHour(frame.validTime),
+      };
     });
 }
 
-export function frameLoadSummary(frames: SmokeFrame[], frameLoadStates: Record<string, SmokeFrameLoadState>): string {
+export function frameLoadSummary(
+  frames: SmokeFrame[],
+  frameLoadStates: Record<string, SmokeFrameLoadState>,
+): string {
   const counts = frames.reduce(
     (total, frame) => {
       total[frameLoadStates[frame.id] ?? "idle"] += 1;
@@ -52,7 +80,11 @@ export function nearestFrameIndex(value: number, max: number): number {
   return Math.min(Math.max(Math.round(value), 0), max);
 }
 
-export function nearestLoadedFrameIndex(value: number, frames: SmokeFrame[], frameLoadStates: Record<string, SmokeFrameLoadState>): number {
+export function nearestLoadedFrameIndex(
+  value: number,
+  frames: SmokeFrame[],
+  frameLoadStates: Record<string, SmokeFrameLoadState>,
+): number {
   const index = nearestFrameIndex(value, Math.max(frames.length - 1, 0));
   if (frameLoadStates[frames[index]?.id] === "loaded") return index;
 
@@ -87,11 +119,17 @@ export function TimeControl({
   const scrubbing = useRef(false);
   const commitFrame = useRef<number | null>(null);
   const range = timeControlRange(frames);
-  const displayIndex = nearestLoadedFrameIndex(sliderValue, frames, frameLoadStates);
+  const displayIndex = nearestLoadedFrameIndex(
+    sliderValue,
+    frames,
+    frameLoadStates,
+  );
   const frame = frames[displayIndex];
   const latestAnalysisIndex = latestAnalysisFrameIndex(frames);
   const marks = timelineMarks(frames);
-  const timestamp = frame ? formatViewerShortHour(frame.validTime) : "Waiting for HRRR smoke frames";
+  const timestamp = frame
+    ? formatViewerShortHour(frame.validTime)
+    : "Waiting for HRRR smoke frames";
 
   useEffect(() => {
     if (!scrubbing.current) setSliderValue(selectedIndex);
@@ -99,7 +137,8 @@ export function TimeControl({
 
   useEffect(() => {
     return () => {
-      if (commitFrame.current !== null) window.cancelAnimationFrame(commitFrame.current);
+      if (commitFrame.current !== null)
+        window.cancelAnimationFrame(commitFrame.current);
     };
   }, []);
 
@@ -107,7 +146,8 @@ export function TimeControl({
     setSliderValue(value);
     const index = nearestLoadedFrameIndex(value, frames, frameLoadStates);
     if (index === selectedIndex) return;
-    if (commitFrame.current !== null) window.cancelAnimationFrame(commitFrame.current);
+    if (commitFrame.current !== null)
+      window.cancelAnimationFrame(commitFrame.current);
     commitFrame.current = window.requestAnimationFrame(() => {
       onSelectedIndexChange(index);
       commitFrame.current = null;
@@ -115,40 +155,72 @@ export function TimeControl({
   };
 
   return (
-    <section className={`panel time-control${minimized ? " minimized" : ""}`} aria-label="Smoke time control">
+    <section
+      className={`panel time-control${minimized ? " minimized" : ""}`}
+      aria-label="Smoke time control"
+    >
       <div className="time-control-header">
         <div className="selected-frame">
-          <span className={`badge ${frame?.kind ?? "analysis"}`}>{frame ? frameBadge(frame) : "No frames"}</span>
+          <span className={`badge ${frame?.kind ?? "analysis"}`}>
+            {frame ? frameBadge(frame) : "No frames"}
+          </span>
           <strong>{timestamp}</strong>
-          {minimized ? null : <span>{SMOKE_RENDERING.legendNote}</span>}
         </div>
         <button
           type="button"
           className="minimize-toggle"
           aria-expanded={!minimized}
-          aria-label={minimized ? "Show full time controls" : "Minimize time controls"}
-          title={minimized ? "Show full time controls" : "Minimize time controls"}
+          aria-label={
+            minimized ? "Show full time controls" : "Minimize time controls"
+          }
+          title={
+            minimized ? "Show full time controls" : "Minimize time controls"
+          }
           onClick={() => setMinimized(!minimized)}
         >
           {minimized ? "⌃" : "⌄"}
         </button>
         {minimized ? null : (
           <>
-            {frames.length > 0 ? <span className="load-summary">{frameLoadSummary(frames, frameLoadStates)}</span> : null}
+            {frames.length > 0 ? (
+              <span className="load-summary">
+                {frameLoadSummary(frames, frameLoadStates)}
+              </span>
+            ) : null}
           </>
         )}
       </div>
       {minimized ? null : (
         <div className="time-control-actions">
-          <button type="button" disabled={latestAnalysisIndex < 0 || selectedIndex === latestAnalysisIndex} onClick={() => onSelectedIndexChange(latestAnalysisIndex)}>
+          <button
+            type="button"
+            disabled={
+              latestAnalysisIndex < 0 || selectedIndex === latestAnalysisIndex
+            }
+            onClick={() => onSelectedIndexChange(latestAnalysisIndex)}
+          >
             Current conditions
           </button>
           {playing ? (
-            <button type="button" onClick={onStop}>Stop</button>
+            <button type="button" onClick={onStop}>
+              Stop
+            </button>
           ) : (
             <>
-              <button type="button" disabled={frameIndexes(frames, "analysis").length === 0} onClick={() => onPlay("analysis")}>Play 24h</button>
-              <button type="button" disabled={frameIndexes(frames, "forecast").length === 0} onClick={() => onPlay("forecast")}>Play forecast</button>
+              <button
+                type="button"
+                disabled={frameIndexes(frames, "analysis").length === 0}
+                onClick={() => onPlay("analysis")}
+              >
+                Play 24h
+              </button>
+              <button
+                type="button"
+                disabled={frameIndexes(frames, "forecast").length === 0}
+                onClick={() => onPlay("forecast")}
+              >
+                Play forecast
+              </button>
             </>
           )}
         </div>
@@ -167,12 +239,24 @@ export function TimeControl({
         }}
         onPointerUp={(event) => {
           scrubbing.current = false;
-          scrubTo(nearestLoadedFrameIndex(event.currentTarget.valueAsNumber, frames, frameLoadStates));
+          scrubTo(
+            nearestLoadedFrameIndex(
+              event.currentTarget.valueAsNumber,
+              frames,
+              frameLoadStates,
+            ),
+          );
         }}
         onChange={(event) => scrubTo(event.currentTarget.valueAsNumber)}
         onBlur={(event) => {
           scrubbing.current = false;
-          scrubTo(nearestLoadedFrameIndex(event.currentTarget.valueAsNumber, frames, frameLoadStates));
+          scrubTo(
+            nearestLoadedFrameIndex(
+              event.currentTarget.valueAsNumber,
+              frames,
+              frameLoadStates,
+            ),
+          );
         }}
       />
       {minimized ? null : (
@@ -188,7 +272,12 @@ export function TimeControl({
           </div>
           <div className="timeline-marks" aria-hidden="true">
             {marks.map((mark) => (
-              <span key={mark.index} style={{ left: `${(mark.index / Math.max(frames.length - 1, 1)) * 100}%` }}>
+              <span
+                key={mark.index}
+                style={{
+                  left: `${(mark.index / Math.max(frames.length - 1, 1)) * 100}%`,
+                }}
+              >
                 {mark.label}
               </span>
             ))}

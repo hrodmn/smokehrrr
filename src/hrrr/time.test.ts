@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSmokeFrames, formatUtcHour, formatViewerHour, formatViewerShortHour } from "./time";
+import { buildSmokeFrames, eagerSmokeFrameOrder, formatUtcHour, formatViewerHour, formatViewerShortHour } from "./time";
 
 const latestRun = { date: "20260717", hour: 3, forecastHour: 0 };
 
@@ -25,6 +25,18 @@ describe("buildSmokeFrames", () => {
       "20260717T03Z-f002",
     ]);
     expect(frames.map((frame) => frame.kind)).toEqual(["analysis", "analysis", "analysis", "forecast", "forecast"]);
+  });
+
+  it("orders eager loading as forecasts first, then analyses newest to oldest", () => {
+    const frames = buildSmokeFrames({ latestRun, analysisLookbackHours: 3, forecastHorizonHours: 2 });
+
+    expect(eagerSmokeFrameOrder(frames).map((frame) => frame.id)).toEqual([
+      "20260717T03Z-f001",
+      "20260717T03Z-f002",
+      "20260717T03Z-f000",
+      "20260717T02Z-f000",
+      "20260717T01Z-f000",
+    ]);
   });
 
   it("includes the latest f00 frame once", () => {

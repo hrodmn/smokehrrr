@@ -63,6 +63,10 @@ function frameId(run: HrrrRun): string {
   return `${run.date}T${String(run.hour).padStart(2, "0")}Z-f${String(run.forecastHour).padStart(3, "0")}`;
 }
 
+export function eagerSmokeFrameOrder(frames: SmokeFrame[]): SmokeFrame[] {
+  return [...frames.filter((frame) => frame.kind === "forecast"), ...frames.filter((frame) => frame.kind === "analysis").reverse()];
+}
+
 export function buildSmokeFrames({
   latestRun,
   analysisLookbackHours = ANALYSIS_LOOKBACK_HOURS,
