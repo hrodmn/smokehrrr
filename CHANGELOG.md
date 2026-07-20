@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/hrodmn/smokehrrr/compare/v0.1.0...v0.1.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* load more frames concurrently ([ac6c89c](https://github.com/hrodmn/smokehrrr/commit/ac6c89cc842af29a0bdc99375934b5cdd947e231))
+
 ## 0.1.0 (2026-07-20)
 
 
