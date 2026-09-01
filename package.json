@@ -8,26 +8,26 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@deck.gl/core": "^9.3.7",
-    "@deck.gl/layers": "^9.3.7",
-    "@deck.gl/mapbox": "^9.3.7",
+    "@deck.gl/core": "^9.3.11",
+    "@deck.gl/layers": "^9.3.11",
+    "@deck.gl/mapbox": "^9.3.11",
     "@developmentseed/deck.gl-raster": "^0.7.0",
     "@developmentseed/morecantile": "^0.7.0",
     "@luma.gl/core": "^9.3.6",
     "@luma.gl/shadertools": "^9.3.6",
-    "maplibre-gl": "^5.24.0",
-    "npyjs": "^1.1.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.3",
-    "react-map-gl": "^8.1.1"
+    "maplibre-gl": "^6.6.0",
+    "npyjs": "^1.2.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-map-gl": "^8.1.2"
   },
   "devDependencies": {
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
-    "jsdom": "^27.2.0",
-    "typescript": "^5.9.3",
-    "vite": "^8.1.4",
-    "vitest": "^4.0.15"
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^30.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }
